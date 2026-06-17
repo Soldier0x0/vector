@@ -5,11 +5,22 @@ import type {
   Template,
   ValidationResult,
   VrlTestRequest,
-  VrlTestResult,
+  VrlTestResponse,
 } from '../types/pipeline';
-import { templates as localTemplates } from '../lib/templates';
 
 const BASE = '/api';
+
+export class ApiRequestError extends Error {
+  status: number;
+  body?: unknown;
+
+  constructor(message: string, status: number, body?: unknown) {
+    super(message);
+    this.name = 'ApiRequestError';
+    this.status = status;
+    this.body = body;
+  }
+}
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
@@ -17,24 +28,32 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     ...init,
   });
 
+  const text = await res.text();
+  const body = text ? (JSON.parse(text) as unknown) : undefined;
+
   if (!res.ok) {
-    const body = await res.text();
-    throw new Error(body || `Request failed: ${res.status}`);
+    throw new ApiRequestError(
+      typeof body === 'object' && body && 'error' in body
+        ? String((body as { error: string }).error)
+        : text || `Request failed: ${res.status}`,
+      res.status,
+      body,
+    );
   }
 
-  if (res.status === 204) {
+  if (res.status === 204 || body === undefined) {
     return undefined as T;
   }
 
-  return res.json() as Promise<T>;
+  return body as T;
 }
 
 export const api = {
   getPipeline: () => request<PipelineGraph>('/pipeline'),
 
   savePipeline: (graph: PipelineGraph) =>
-    request<void>('/pipeline', {
-      method: 'PUT',
+    request<PipelineGraph>('/pipeline', {
+      method: 'POST',
       body: JSON.stringify(graph),
     }),
 
@@ -44,33 +63,29 @@ export const api = {
       body: JSON.stringify(graph),
     }),
 
-  reloadPipeline: () =>
-    request<void>('/pipeline/reload', { method: 'POST' }),
-
-  getVrl: (transformId: string) =>
-    request<{ source: string }>(`/vrl/${encodeURIComponent(transformId)}`),
-
-  saveVrl: (transformId: string, source: string) =>
-    request<void>(`/vrl/${encodeURIComponent(transformId)}`, {
-      method: 'PUT',
-      body: JSON.stringify({ source }),
-    }),
-
   testVrl: (payload: VrlTestRequest) =>
-    request<VrlTestResult>('/vrl/test', {
+    request<VrlTestResponse>('/vrl/test', {
       method: 'POST',
       body: JSON.stringify(payload),
     }),
 
-  getTemplates: async (): Promise<Template[]> => {
-    try {
-      return await request<Template[]>('/templates');
-    } catch {
-      return localTemplates;
-    }
+  getTemplates: () => request<Template[]>('/templates'),
+
+  applyTemplate: (templateId: string, targetPipeline: PipelineGraph) =>
+    request<PipelineGraph>(`/templates/${encodeURIComponent(templateId)}/apply`, {
+      method: 'POST',
+      body: JSON.stringify({ targetPipeline }),
+    }),
+
+  getAuditLog: (params?: { limit?: number; before?: string }) => {
+    const search = new URLSearchParams();
+    if (params?.limit) search.set('limit', String(params.limit));
+    if (params?.before) search.set('before', params.before);
+    const qs = search.toString();
+    return request<AuditEntry[]>(`/audit${qs ? `?${qs}` : ''}`);
   },
 
-  getAuditLog: () => request<AuditEntry[]>('/audit'),
+  health: () => request<{ status: string }>('/health'),
 };
 
 export function getMetricsWebSocketUrl(): string {
@@ -80,3 +95,12 @@ export function getMetricsWebSocketUrl(): string {
 }
 
 export type { MetricsMessage };
+
+export function isValidationResult(body: unknown): body is ValidationResult {
+  return (
+    typeof body === 'object' &&
+    body !== null &&
+    'valid' in body &&
+    'errors' in body
+  );
+}

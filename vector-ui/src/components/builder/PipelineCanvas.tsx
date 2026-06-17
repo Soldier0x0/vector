@@ -53,20 +53,24 @@ interface PipelineCanvasProps {
   pipelineNodes: PipelineNode[];
   pipelineEdges: PipelineEdge[];
   validationErrors: ValidationError[];
-  onNodesChange: (nodes: PipelineNode[]) => void;
-  onEdgesChange: (edges: PipelineEdge[]) => void;
+  onPersistNodes: (nodes: PipelineNode[]) => Promise<void>;
+  onPersistEdges: (edges: PipelineEdge[]) => Promise<void>;
+  onDeleteNodes: (nodeIds: string[]) => Promise<void>;
   onSelectNode: (nodeId: string | null) => void;
-  onAddSource: () => void;
+  onAddSource: () => Promise<void>;
+  disabled?: boolean;
 }
 
 export function PipelineCanvas({
   pipelineNodes,
   pipelineEdges,
   validationErrors,
-  onNodesChange,
-  onEdgesChange,
+  onPersistNodes,
+  onPersistEdges,
+  onDeleteNodes,
   onSelectNode,
   onAddSource,
+  disabled,
 }: PipelineCanvasProps) {
   const initialNodes = useMemo(
     () => pipelineNodes.map((n) => toFlowNode(n, validationErrors)),
@@ -88,31 +92,33 @@ export function PipelineCanvas({
     setEdges(pipelineEdges.map(toFlowEdge));
   }, [pipelineEdges, setEdges]);
 
-  const syncNodes = useCallback(
-    (flowNodes: Node[]) => {
-      const updated = pipelineNodes.map((pn) => {
+  const mergePositions = useCallback(
+    (flowNodes: Node[]) =>
+      pipelineNodes.map((pn) => {
         const fn = flowNodes.find((n) => n.id === pn.id);
         return fn ? { ...pn, position: fn.position } : pn;
-      });
-      onNodesChange(updated);
-    },
-    [pipelineNodes, onNodesChange],
+      }),
+    [pipelineNodes],
   );
 
   const onConnect = useCallback(
     (connection: Connection) => {
-      setEdges((eds) => {
-        const next = addEdge(
-          { ...connection, style: { stroke: 'var(--border2)' } },
-          eds,
-        );
-        onEdgesChange(
-          next.map((e) => ({ id: e.id, source: e.source, target: e.target })),
-        );
-        return next;
+      if (disabled) return;
+      const nextEdges = addEdge(
+        { ...connection, style: { stroke: 'var(--border2)' } },
+        edges,
+      );
+      const pipelineEdgeList = nextEdges.map((e) => ({
+        id: e.id,
+        source: e.source,
+        target: e.target,
+      }));
+      setEdges(nextEdges);
+      onPersistEdges(pipelineEdgeList).catch(() => {
+        setEdges(pipelineEdges.map(toFlowEdge));
       });
     },
-    [setEdges, onEdgesChange],
+    [disabled, edges, onPersistEdges, pipelineEdges, setEdges],
   );
 
   const onSelectionChange = useCallback(
@@ -123,18 +129,30 @@ export function PipelineCanvas({
   );
 
   const onNodeDragStop = useCallback(() => {
-    syncNodes(nodes);
-  }, [nodes, syncNodes]);
+    if (disabled) return;
+    const updated = mergePositions(nodes);
+    onPersistNodes(updated).catch(() => {
+      setNodes(pipelineNodes.map((n) => toFlowNode(n, validationErrors)));
+    });
+  }, [
+    disabled,
+    mergePositions,
+    nodes,
+    onPersistNodes,
+    pipelineNodes,
+    setNodes,
+    validationErrors,
+  ]);
 
   const onNodesDelete = useCallback(
     (deleted: Node[]) => {
-      const ids = new Set(deleted.map((n) => n.id));
-      onNodesChange(pipelineNodes.filter((n) => !ids.has(n.id)));
-      onEdgesChange(
-        pipelineEdges.filter((e) => !ids.has(e.source) && !ids.has(e.target)),
-      );
+      if (disabled) return;
+      onDeleteNodes(deleted.map((n) => n.id)).catch(() => {
+        setNodes(pipelineNodes.map((n) => toFlowNode(n, validationErrors)));
+        setEdges(pipelineEdges.map(toFlowEdge));
+      });
     },
-    [pipelineNodes, pipelineEdges, onNodesChange, onEdgesChange],
+    [disabled, onDeleteNodes, pipelineNodes, pipelineEdges, setNodes, setEdges, validationErrors],
   );
 
   const isEmpty = pipelineNodes.length === 0;
@@ -151,7 +169,9 @@ export function PipelineCanvas({
         onSelectionChange={onSelectionChange}
         onNodeDragStop={onNodeDragStop}
         onNodesDelete={onNodesDelete}
-        deleteKeyCode={['Backspace', 'Delete']}
+        deleteKeyCode={disabled ? null : ['Backspace', 'Delete']}
+        nodesDraggable={!disabled}
+        nodesConnectable={!disabled}
         fitView
         proOptions={{ hideAttribution: true }}
         className="bg-bg"
@@ -165,7 +185,9 @@ export function PipelineCanvas({
         />
       </ReactFlow>
 
-      {isEmpty && <BuilderEmptyState onAddSource={onAddSource} />}
+      {isEmpty && (
+        <BuilderEmptyState onAddSource={() => void onAddSource()} loading={disabled} />
+      )}
     </div>
   );
 }

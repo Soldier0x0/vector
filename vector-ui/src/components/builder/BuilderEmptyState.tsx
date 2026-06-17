@@ -3,15 +3,19 @@ import { EmptyState } from '../ui/EmptyState';
 
 interface BuilderEmptyStateProps {
   onAddSource: () => void;
+  loading?: boolean;
 }
 
-export function BuilderEmptyState({ onAddSource }: BuilderEmptyStateProps) {
+export function BuilderEmptyState({ onAddSource, loading }: BuilderEmptyStateProps) {
   return (
     <EmptyState
       icon={<GitBranch size={40} strokeWidth={1.25} />}
       title="Start building your pipeline"
       description="Add a source node to begin. Connect transforms and sinks to define how data flows through Vector."
-      action={{ label: 'Add Source Node', onClick: onAddSource }}
+      action={{
+        label: loading ? 'Adding…' : 'Add Source Node',
+        onClick: onAddSource,
+      }}
       className="absolute inset-0 m-auto h-fit max-w-lg"
     />
   );

@@ -15,7 +15,6 @@ interface AppState {
   pipelineActions: {
     validate?: () => void;
     save?: () => void;
-    reload?: () => void;
   };
 
   setSidebarCollapsed: (collapsed: boolean) => void;
@@ -23,6 +22,7 @@ interface AppState {
   setPipelineMeta: (name: string, status: PipelineStatus) => void;
   setValidationErrors: (errors: ValidationError[]) => void;
   clearValidationErrors: () => void;
+  getValidationError: (nodeId: string) => string | undefined;
   setSelectedNodeId: (id: string | null) => void;
   setIsValidating: (v: boolean) => void;
   setIsSaving: (v: boolean) => void;
@@ -33,7 +33,7 @@ interface AppState {
   updateFromPipeline: (graph: PipelineGraph) => void;
 }
 
-export const useAppStore = create<AppState>((set) => ({
+export const useAppStore = create<AppState>((set, get) => ({
   sidebarCollapsed: false,
   pipelineName: 'default',
   pipelineStatus: 'unknown',
@@ -51,6 +51,10 @@ export const useAppStore = create<AppState>((set) => ({
   setPipelineMeta: (name, status) => set({ pipelineName: name, pipelineStatus: status }),
   setValidationErrors: (errors) => set({ validationErrors: errors }),
   clearValidationErrors: () => set({ validationErrors: [] }),
+  getValidationError: (nodeId: string) => {
+    const err = get().validationErrors.find((e) => e.nodeId === nodeId);
+    return err?.message;
+  },
   setSelectedNodeId: (id) => set({ selectedNodeId: id }),
   setIsValidating: (v) => set({ isValidating: v }),
   setIsSaving: (v) => set({ isSaving: v }),

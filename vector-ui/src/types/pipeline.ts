@@ -33,6 +33,7 @@ export interface ValidationError {
 export interface ValidationResult {
   valid: boolean;
   errors: ValidationError[];
+  raw?: string;
 }
 
 export interface VrlTestRequest {
@@ -40,9 +41,10 @@ export interface VrlTestRequest {
   event: Record<string, unknown>;
 }
 
-export interface VrlTestResult {
-  output?: Record<string, unknown>;
+export interface VrlTestResponse {
+  result?: Record<string, unknown>;
   error?: string;
+  line?: number;
 }
 
 export interface ComponentMetric {
@@ -63,15 +65,14 @@ export interface Template {
   title: string;
   description: string;
   tags: string[];
-  source: string;
+  vrlSource: string;
 }
 
 export interface AuditEntry {
-  id: string;
   timestamp: string;
-  summary: string;
-  added: string[];
-  removed: string[];
+  nodesAdded: string[];
+  nodesRemoved: string[];
+  nodesModified: string[];
 }
 
 export interface JsonSchemaProperty {

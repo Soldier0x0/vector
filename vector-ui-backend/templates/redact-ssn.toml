@@ -1,0 +1,9 @@
+id = "redact-ssn"
+title = "Redact SSN"
+description = "Mask Social Security numbers in log messages using VRL replace."
+tags = ["pii", "redaction", "compliance"]
+vrl_source = """
+if exists(.message) {
+  .message = replace(string!(.message), r'\\b\\d{3}-\\d{2}-\\d{4}\\b', "[REDACTED]")
+}
+"""

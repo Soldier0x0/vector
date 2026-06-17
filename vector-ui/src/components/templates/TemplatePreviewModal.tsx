@@ -8,6 +8,7 @@ interface TemplatePreviewModalProps {
   open: boolean;
   onClose: () => void;
   onAdd: (template: Template) => void;
+  loading?: boolean;
 }
 
 export function TemplatePreviewModal({
@@ -15,6 +16,7 @@ export function TemplatePreviewModal({
   open,
   onClose,
   onAdd,
+  loading,
 }: TemplatePreviewModalProps) {
   if (!open || !template) return null;
 
@@ -25,7 +27,7 @@ export function TemplatePreviewModal({
         <div className="flex items-center justify-between border-b border-border2 px-4 py-3">
           <h2 className="font-display text-lg text-text">{template.title}</h2>
           <div className="flex gap-2">
-            <Button variant="primary" onClick={() => onAdd(template)}>
+            <Button variant="primary" loading={loading} onClick={() => onAdd(template)}>
               Add to Pipeline
             </Button>
             <Button variant="ghost" onClick={onClose}>
@@ -38,7 +40,7 @@ export function TemplatePreviewModal({
             height="100%"
             language="plaintext"
             theme="vector-dark"
-            value={template.source}
+            value={template.vrlSource}
             beforeMount={registerMonacoTheme}
             options={{
               readOnly: true,

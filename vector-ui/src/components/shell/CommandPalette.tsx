@@ -6,7 +6,6 @@ import {
   BookTemplate,
   FileCode2,
   GitBranch,
-  RefreshCw,
   Save,
   ScrollText,
   ShieldCheck,
@@ -17,10 +16,9 @@ import { cn } from '../../lib/cn';
 interface CommandPaletteProps {
   onValidate?: () => void;
   onSave?: () => void;
-  onReload?: () => void;
 }
 
-export function CommandPalette({ onValidate, onSave, onReload }: CommandPaletteProps) {
+export function CommandPalette({ onValidate, onSave }: CommandPaletteProps) {
   const open = useAppStore((s) => s.commandPaletteOpen);
   const setOpen = useAppStore((s) => s.setCommandPaletteOpen);
   const navigate = useNavigate();
@@ -92,11 +90,6 @@ export function CommandPalette({ onValidate, onSave, onReload }: CommandPaletteP
               {onSave && (
                 <CommandItem icon={Save} onSelect={() => run(onSave)}>
                   Save Pipeline
-                </CommandItem>
-              )}
-              {onReload && (
-                <CommandItem icon={RefreshCw} onSelect={() => run(onReload)}>
-                  Reload Pipeline
                 </CommandItem>
               )}
             </Command.Group>

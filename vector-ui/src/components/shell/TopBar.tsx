@@ -7,20 +7,17 @@ interface TopBarProps {
   showActions?: boolean;
   onValidate?: () => void;
   onSave?: () => void;
-  onReload?: () => void;
 }
 
 export function TopBar({
   showActions = false,
   onValidate,
   onSave,
-  onReload,
 }: TopBarProps) {
   const pipelineName = useAppStore((s) => s.pipelineName);
   const pipelineStatus = useAppStore((s) => s.pipelineStatus);
   const isValidating = useAppStore((s) => s.isValidating);
   const isSaving = useAppStore((s) => s.isSaving);
-  const isReloading = useAppStore((s) => s.isReloading);
   const setCommandPaletteOpen = useAppStore((s) => s.setCommandPaletteOpen);
 
   return (
@@ -37,9 +34,6 @@ export function TopBar({
             </Button>
             <Button variant="secondary" loading={isSaving} onClick={onSave}>
               Save
-            </Button>
-            <Button variant="secondary" loading={isReloading} onClick={onReload}>
-              Reload
             </Button>
           </>
         )}

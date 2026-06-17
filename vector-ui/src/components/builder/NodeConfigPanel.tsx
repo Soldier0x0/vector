@@ -1,20 +1,35 @@
+import { useEffect, useState } from 'react';
 import { X } from 'lucide-react';
 import { cn } from '../../lib/cn';
 import { getSchemaForNodeKind } from '../../lib/nodeSchemas';
 import type { PipelineNode } from '../../types/pipeline';
 import { SchemaForm } from './SchemaForm';
+import { Button } from '../ui/Button';
 
 interface NodeConfigPanelProps {
   node: PipelineNode | null;
   open: boolean;
   onClose: () => void;
-  onUpdate: (nodeId: string, config: Record<string, unknown>) => void;
+  onSave: (nodeId: string, config: Record<string, unknown>) => Promise<void>;
+  saving?: boolean;
 }
 
-export function NodeConfigPanel({ node, open, onClose, onUpdate }: NodeConfigPanelProps) {
+export function NodeConfigPanel({ node, open, onClose, onSave, saving }: NodeConfigPanelProps) {
+  const [draft, setDraft] = useState<Record<string, unknown>>({});
+
+  useEffect(() => {
+    if (node) {
+      setDraft(node.config);
+    }
+  }, [node]);
+
   if (!open || !node) return null;
 
   const schema = getSchemaForNodeKind(node.type);
+
+  const handleSave = async () => {
+    await onSave(node.id, draft);
+  };
 
   return (
     <>
@@ -42,11 +57,13 @@ export function NodeConfigPanel({ node, open, onClose, onUpdate }: NodeConfigPan
         </div>
 
         <div className="flex-1 overflow-auto p-4">
-          <SchemaForm
-            schema={schema}
-            values={node.config}
-            onChange={(config) => onUpdate(node.id, config)}
-          />
+          <SchemaForm schema={schema} values={draft} onChange={setDraft} />
+        </div>
+
+        <div className="border-t border-border2 p-4">
+          <Button variant="primary" className="w-full" loading={saving} onClick={() => void handleSave()}>
+            Save Configuration
+          </Button>
         </div>
       </aside>
     </>

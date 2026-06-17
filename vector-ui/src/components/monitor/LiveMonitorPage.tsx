@@ -1,44 +1,15 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { getMetricsWebSocketUrl, type MetricsMessage } from '../../api/client';
+import { useCallback, useState } from 'react';
 import { useWebSocket } from '../../hooks/useWebSocket';
-import type { ComponentMetric } from '../../types/pipeline';
+import type { MetricsMessage } from '../../types/pipeline';
 import { ComponentCard } from './ComponentCard';
 import { Skeleton } from '../ui/Skeleton';
 import { EmptyState } from '../ui/EmptyState';
 import { Activity } from 'lucide-react';
 
-const demoMetrics: ComponentMetric[] = [
-  {
-    id: 'app_logs',
-    name: 'app_logs',
-    throughput: [12, 18, 15, 22, 19, 25, 21, 28],
-    errorCount: 0,
-    bufferFill: 23,
-    timestamp: Date.now(),
-  },
-  {
-    id: 'parse_json',
-    name: 'parse_json',
-    throughput: [10, 14, 16, 13, 20, 18, 22, 19],
-    errorCount: 2,
-    bufferFill: 67,
-    timestamp: Date.now(),
-  },
-  {
-    id: 'stdout',
-    name: 'stdout',
-    throughput: [8, 12, 11, 15, 14, 17, 16, 20],
-    errorCount: 0,
-    bufferFill: 8,
-    timestamp: Date.now(),
-  },
-];
-
 export function LiveMonitorPage() {
-  const [components, setComponents] = useState<ComponentMetric[]>([]);
+  const [components, setComponents] = useState<MetricsMessage['components']>([]);
   const [pulseKeys, setPulseKeys] = useState<Record<string, number>>({});
   const [initialized, setInitialized] = useState(false);
-  const fallbackTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleMessage = useCallback((data: MetricsMessage) => {
     setComponents(data.components);
@@ -52,25 +23,12 @@ export function LiveMonitorPage() {
     setInitialized(true);
   }, []);
 
+  const wsUrl = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws/metrics`;
+
   const { status } = useWebSocket<MetricsMessage>({
-    url: getMetricsWebSocketUrl(),
+    url: wsUrl,
     onMessage: handleMessage,
   });
-
-  useEffect(() => {
-    if (initialized) return;
-    fallbackTimer.current = setTimeout(() => {
-      setComponents((current) => {
-        if (current.length > 0) return current;
-        setPulseKeys({ app_logs: 1, parse_json: 1, stdout: 1 });
-        setInitialized(true);
-        return demoMetrics;
-      });
-    }, 2000);
-    return () => {
-      if (fallbackTimer.current) clearTimeout(fallbackTimer.current);
-    };
-  }, [initialized]);
 
   const isConnecting = status === 'connecting' && !initialized;
 
@@ -79,13 +37,16 @@ export function LiveMonitorPage() {
       <div className="mb-6 flex items-center justify-between">
         <div>
           <h1 className="font-display text-2xl text-text">Live Monitor</h1>
-          <p className="text-sm text-text2">Real-time component metrics</p>
+          <p className="text-sm text-text2">Real-time component metrics from Vector</p>
         </div>
         {status === 'reconnecting' && (
           <span className="font-body text-sm text-amber">Reconnecting…</span>
         )}
         {status === 'connected' && (
           <span className="font-body text-sm text-green">Connected</span>
+        )}
+        {status === 'connecting' && !initialized && (
+          <span className="font-body text-sm text-text2">Connecting…</span>
         )}
       </div>
 
@@ -99,7 +60,7 @@ export function LiveMonitorPage() {
         <EmptyState
           icon={<Activity size={40} strokeWidth={1.25} />}
           title="No metrics yet"
-          description="Waiting for component metrics from the pipeline. Ensure the backend WebSocket is running."
+          description="Metrics appear once Vector is running with the API enabled and components are processing events."
         />
       ) : (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">

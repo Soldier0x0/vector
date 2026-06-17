@@ -15,7 +15,6 @@ function BuilderLayout() {
       showPipelineActions
       onValidate={pipelineActions.validate}
       onSave={pipelineActions.save}
-      onReload={pipelineActions.reload}
     />
   );
 }

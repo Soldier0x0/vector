@@ -1,67 +1,41 @@
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { api } from '../../api/client';
+import { api, ApiRequestError, isValidationResult } from '../../api/client';
 import { useAppStore } from '../../stores/appStore';
 import type { PipelineEdge, PipelineGraph, PipelineNode } from '../../types/pipeline';
 import { PipelineCanvas } from './PipelineCanvas';
 import { NodeConfigPanel } from './NodeConfigPanel';
 import { Skeleton } from '../ui/Skeleton';
+import { EmptyState } from '../ui/EmptyState';
+import { GitBranch } from 'lucide-react';
 
-const demoPipeline: PipelineGraph = {
-  name: 'demo-pipeline',
-  status: 'running',
-  nodes: [
-    {
-      id: 'src-1',
-      type: 'source',
-      componentType: 'file',
-      label: 'app_logs',
-      config: { type: 'file', include: '/var/log/app/*.log' },
-      position: { x: 80, y: 120 },
-    },
-    {
-      id: 'tf-1',
-      type: 'transform',
-      componentType: 'remap',
-      label: 'parse_json',
-      transformType: 'remap',
-      config: { type: 'remap', inputs: 'app_logs' },
-      position: { x: 340, y: 120 },
-    },
-    {
-      id: 'snk-1',
-      type: 'sink',
-      componentType: 'console',
-      label: 'stdout',
-      config: { type: 'console', inputs: 'parse_json', encoding: 'json' },
-      position: { x: 600, y: 120 },
-    },
-  ],
-  edges: [
-    { id: 'e1', source: 'src-1', target: 'tf-1' },
-    { id: 'e2', source: 'tf-1', target: 'snk-1' },
-  ],
-};
-
-let nodeCounter = 4;
+let nodeCounter = 0;
 
 function createNode(type: PipelineNode['type'], position: { x: number; y: number }): PipelineNode {
-  const id = `${type.slice(0, 3)}-${nodeCounter++}`;
+  nodeCounter += 1;
+  const id = `${type}_${nodeCounter}`;
   const defaults: Record<PipelineNode['type'], Partial<PipelineNode>> = {
-    source: { componentType: 'file', label: `source_${nodeCounter}`, config: { type: 'file' } },
+    source: { componentType: 'stdin', label: id, config: { type: 'stdin' } },
     transform: {
       componentType: 'remap',
-      label: `transform_${nodeCounter}`,
+      label: id,
       transformType: 'remap',
-      config: { type: 'remap' },
+      config: { type: 'remap', source: '' },
     },
-    sink: { componentType: 'console', label: `sink_${nodeCounter}`, config: { type: 'console' } },
+    sink: { componentType: 'console', label: id, config: { type: 'console', encoding: { codec: 'json' } } },
   };
   return { id, type, position, ...defaults[type] } as PipelineNode;
 }
 
+function emptyGraph(): PipelineGraph {
+  return { name: 'default', status: 'unknown', nodes: [], edges: [] };
+}
+
 export function PipelineBuilderPage() {
   const [graph, setGraph] = useState<PipelineGraph | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [isPersisting, setIsPersisting] = useState(false);
+
   const isLoading = useAppStore((s) => s.isLoadingPipeline);
   const setIsLoading = useAppStore((s) => s.setIsLoadingPipeline);
   const validationErrors = useAppStore((s) => s.validationErrors);
@@ -71,77 +45,107 @@ export function PipelineBuilderPage() {
   const setSelectedNodeId = useAppStore((s) => s.setSelectedNodeId);
   const updateFromPipeline = useAppStore((s) => s.updateFromPipeline);
   const setIsValidating = useAppStore((s) => s.setIsValidating);
-  const setIsSaving = useAppStore((s) => s.setIsSaving);
-  const setIsReloading = useAppStore((s) => s.setIsReloading);
+  const setIsSavingStore = useAppStore((s) => s.setIsSaving);
   const setPipelineActions = useAppStore((s) => s.setPipelineActions);
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      setIsLoading(true);
-      try {
-        const data = await api.getPipeline();
-        if (!cancelled) {
-          setGraph(data);
-          updateFromPipeline(data);
-        }
-      } catch {
-        if (!cancelled) {
-          setGraph(demoPipeline);
-          updateFromPipeline(demoPipeline);
-          toast.message('Using demo pipeline — backend unavailable');
-        }
-      } finally {
-        if (!cancelled) setIsLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
+  const loadPipeline = useCallback(async () => {
+    setIsLoading(true);
+    setLoadError(null);
+    try {
+      const data = await api.getPipeline();
+      setGraph(data);
+      updateFromPipeline(data);
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : 'Failed to load pipeline');
+    } finally {
+      setIsLoading(false);
+    }
   }, [setIsLoading, updateFromPipeline]);
+
+  useEffect(() => {
+    loadPipeline();
+  }, [loadPipeline]);
+
+  const persistGraph = useCallback(
+    async (nextGraph: PipelineGraph, successMessage?: string) => {
+      setIsPersisting(true);
+      setIsSavingStore(true);
+      clearValidationErrors();
+      try {
+        const saved = await api.savePipeline(nextGraph);
+        setGraph(saved);
+        updateFromPipeline(saved);
+        if (successMessage) toast.success(successMessage);
+        return saved;
+      } catch (err) {
+        if (err instanceof ApiRequestError && err.status === 422 && isValidationResult(err.body)) {
+          setValidationErrors(err.body.errors);
+          toast.error(err.body.raw ?? 'Pipeline validation failed');
+        } else {
+          toast.error(err instanceof Error ? err.message : 'Save failed');
+        }
+        throw err;
+      } finally {
+        setIsPersisting(false);
+        setIsSavingStore(false);
+      }
+    },
+    [clearValidationErrors, setIsSavingStore, setValidationErrors, updateFromPipeline],
+  );
 
   const selectedNode = graph?.nodes.find((n) => n.id === selectedNodeId) ?? null;
 
-  const handleNodesChange = useCallback((nodes: PipelineNode[]) => {
-    setGraph((g) => (g ? { ...g, nodes } : g));
-  }, []);
-
-  const handleEdgesChange = useCallback((edges: PipelineEdge[]) => {
-    setGraph((g) => (g ? { ...g, edges } : g));
-  }, []);
-
-  const handleUpdateConfig = useCallback(
-    (nodeId: string, config: Record<string, unknown>) => {
-      setGraph((g) => {
-        if (!g) return g;
-        return {
-          ...g,
-          nodes: g.nodes.map((n) =>
-            n.id === nodeId
-              ? {
-                  ...n,
-                  config,
-                  componentType: String(config.type ?? n.componentType),
-                  transformType:
-                    n.type === 'transform' ? String(config.type ?? n.transformType) : n.transformType,
-                }
-              : n,
-          ),
-        };
-      });
-      clearValidationErrors();
+  const handlePersistNodes = useCallback(
+    async (nodes: PipelineNode[]) => {
+      if (!graph) return;
+      await persistGraph({ ...graph, nodes });
     },
-    [clearValidationErrors],
+    [graph, persistGraph],
   );
 
-  const handleAddSource = useCallback(() => {
-    setGraph((g) => {
-      const base = g ?? { ...demoPipeline, nodes: [], edges: [] };
-      const node = createNode('source', { x: 100, y: 100 + base.nodes.length * 80 });
-      return { ...base, nodes: [...base.nodes, node] };
-    });
-    clearValidationErrors();
-  }, [clearValidationErrors]);
+  const handlePersistEdges = useCallback(
+    async (edges: PipelineEdge[]) => {
+      if (!graph) return;
+      await persistGraph({ ...graph, edges });
+    },
+    [graph, persistGraph],
+  );
+
+  const handleSaveConfig = useCallback(
+    async (nodeId: string, config: Record<string, unknown>) => {
+      if (!graph) return;
+      const nodes = graph.nodes.map((n) =>
+        n.id === nodeId
+          ? {
+              ...n,
+              config,
+              componentType: String(config.type ?? n.componentType),
+              transformType:
+                n.type === 'transform' ? String(config.type ?? n.transformType) : n.transformType,
+            }
+          : n,
+      );
+      await persistGraph({ ...graph, nodes }, 'Node configuration saved');
+    },
+    [graph, persistGraph],
+  );
+
+  const handleAddSource = useCallback(async () => {
+    const base = graph ?? emptyGraph();
+    const node = createNode('source', { x: 100, y: 100 + base.nodes.length * 80 });
+    await persistGraph({ ...base, nodes: [...base.nodes, node] }, 'Source node added');
+  }, [graph, persistGraph]);
+
+  const handleDeleteNodes = useCallback(
+    async (nodeIds: string[]) => {
+      if (!graph) return;
+      const ids = new Set(nodeIds);
+      const nodes = graph.nodes.filter((n) => !ids.has(n.id));
+      const edges = graph.edges.filter((e) => !ids.has(e.source) && !ids.has(e.target));
+      await persistGraph({ ...graph, nodes, edges }, 'Node deleted');
+    },
+    [graph, persistGraph],
+  );
 
   const validate = useCallback(async () => {
     if (!graph) return;
@@ -153,7 +157,7 @@ export function PipelineBuilderPage() {
         toast.success('Pipeline validation passed');
       } else {
         setValidationErrors(result.errors);
-        toast.error(`${result.errors.length} validation error(s)`);
+        toast.error(result.raw ?? `${result.errors.length} validation error(s)`);
       }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Validation failed');
@@ -164,38 +168,15 @@ export function PipelineBuilderPage() {
 
   const save = useCallback(async () => {
     if (!graph) return;
-    setIsSaving(true);
-    try {
-      await api.savePipeline(graph);
-      toast.success('Pipeline saved');
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Save failed');
-    } finally {
-      setIsSaving(false);
-    }
-  }, [graph, setIsSaving]);
-
-  const reload = useCallback(async () => {
-    setIsReloading(true);
-    updateFromPipeline({ ...(graph ?? demoPipeline), status: 'reloading' });
-    try {
-      await api.reloadPipeline();
-      toast.success('Pipeline reload initiated');
-      updateFromPipeline({ ...(graph ?? demoPipeline), status: 'running' });
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Reload failed');
-      updateFromPipeline({ ...(graph ?? demoPipeline), status: 'error' });
-    } finally {
-      setIsReloading(false);
-    }
-  }, [graph, setIsReloading, updateFromPipeline]);
+    await persistGraph(graph, 'Pipeline saved');
+  }, [graph, persistGraph]);
 
   useEffect(() => {
-    setPipelineActions({ validate, save, reload });
+    setPipelineActions({ validate, save });
     return () => setPipelineActions({});
-  }, [validate, save, reload, setPipelineActions]);
+  }, [validate, save, setPipelineActions]);
 
-  if (isLoading || !graph) {
+  if (isLoading) {
     return (
       <div className="flex h-full flex-col gap-4 p-6">
         <Skeleton className="h-8 w-48" />
@@ -209,22 +190,45 @@ export function PipelineBuilderPage() {
     );
   }
 
+  if (loadError) {
+    return (
+      <div className="flex h-[calc(100vh-3rem)] items-center justify-center p-6">
+        <EmptyState
+          icon={<GitBranch size={40} strokeWidth={1.25} />}
+          title="Failed to load pipeline"
+          description={loadError}
+          action={{ label: 'Retry', onClick: loadPipeline }}
+        />
+      </div>
+    );
+  }
+
+  if (!graph) return null;
+
   return (
     <div className="relative h-[calc(100vh-3rem)]">
+      {isPersisting && (
+        <div className="absolute left-1/2 top-3 z-20 -translate-x-1/2 rounded-full border border-border2 bg-bg2 px-3 py-1 font-body text-xs text-text2">
+          Saving…
+        </div>
+      )}
       <PipelineCanvas
         pipelineNodes={graph.nodes}
         pipelineEdges={graph.edges}
         validationErrors={validationErrors}
-        onNodesChange={handleNodesChange}
-        onEdgesChange={handleEdgesChange}
+        onPersistNodes={handlePersistNodes}
+        onPersistEdges={handlePersistEdges}
+        onDeleteNodes={handleDeleteNodes}
         onSelectNode={setSelectedNodeId}
         onAddSource={handleAddSource}
+        disabled={isPersisting}
       />
       <NodeConfigPanel
         node={selectedNode}
         open={Boolean(selectedNode)}
         onClose={() => setSelectedNodeId(null)}
-        onUpdate={handleUpdateConfig}
+        onSave={handleSaveConfig}
+        saving={isPersisting}
       />
     </div>
   );

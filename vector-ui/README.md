@@ -2,6 +2,8 @@
 
 React + TypeScript frontend for managing Vector pipelines. Talks to `vector-ui-backend` on `http://localhost:4000`.
 
+All data is loaded from and persisted to the backend — no local fallback/mock data.
+
 ## Stack
 
 - Vite + React + TypeScript
@@ -11,6 +13,16 @@ React + TypeScript frontend for managing Vector pipelines. Talks to `vector-ui-b
 - cmdk (command palette), sonner (toasts), recharts, framer-motion
 
 ## Development
+
+From the repo root (starts Vector, backend, and frontend):
+
+```bash
+npm run dev
+# or
+./scripts/dev.sh
+```
+
+Or run the frontend alone (requires backend on port 4000):
 
 ```bash
 cd vector-ui

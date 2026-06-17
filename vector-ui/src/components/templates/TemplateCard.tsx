@@ -5,9 +5,10 @@ interface TemplateCardProps {
   template: Template;
   onPreview: (template: Template) => void;
   onAdd: (template: Template) => void;
+  loading?: boolean;
 }
 
-export function TemplateCard({ template, onPreview, onAdd }: TemplateCardProps) {
+export function TemplateCard({ template, onPreview, onAdd, loading }: TemplateCardProps) {
   return (
     <article className="flex flex-col rounded-lg border border-border2 bg-bg2 p-4">
       <h3 className="font-display text-lg text-text">{template.title}</h3>
@@ -26,7 +27,7 @@ export function TemplateCard({ template, onPreview, onAdd }: TemplateCardProps) 
         <Button variant="secondary" onClick={() => onPreview(template)}>
           Preview
         </Button>
-        <Button variant="primary" onClick={() => onAdd(template)}>
+        <Button variant="primary" loading={loading} onClick={() => onAdd(template)}>
           Add to Pipeline
         </Button>
       </div>

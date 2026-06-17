@@ -16,27 +16,26 @@ const DEFAULT_VRL = `# VRL transform
 export function VrlEditorPage() {
   const { transformId = 'default' } = useParams();
   const [source, setSource] = useState(DEFAULT_VRL);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [testing, setTesting] = useState(false);
   const [output, setOutput] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      setLoading(true);
-      try {
-        const data = await api.getVrl(transformId);
-        if (!cancelled) setSource(data.source);
-      } catch {
-        if (!cancelled) setSource(DEFAULT_VRL);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
+    if (transformId === 'default') {
+      setSource(DEFAULT_VRL);
+      return;
+    }
+    setLoading(true);
+    api
+      .getPipeline()
+      .then((graph) => {
+        const node = graph.nodes.find((n) => n.id === transformId);
+        const vrl = node?.config?.source;
+        if (typeof vrl === 'string') setSource(vrl);
+      })
+      .catch(() => toast.error('Failed to load transform source from pipeline'))
+      .finally(() => setLoading(false));
   }, [transformId]);
 
   const handleRun = useCallback(
@@ -47,9 +46,9 @@ export function VrlEditorPage() {
       try {
         const result = await api.testVrl({ source, event });
         if (result.error) {
-          setError(result.error);
-        } else {
-          setOutput(JSON.stringify(result.output, null, 2));
+          setError(result.line ? `Line ${result.line}: ${result.error}` : result.error);
+        } else if (result.result) {
+          setOutput(JSON.stringify(result.result, null, 2));
         }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Test failed');
@@ -61,9 +60,17 @@ export function VrlEditorPage() {
   );
 
   const handleSave = useCallback(async () => {
+    if (transformId === 'default') {
+      toast.message('Open a specific transform from the pipeline builder to save');
+      return;
+    }
     try {
-      await api.saveVrl(transformId, source);
-      toast.success('VRL saved');
+      const graph = await api.getPipeline();
+      const nodes = graph.nodes.map((n) =>
+        n.id === transformId ? { ...n, config: { ...n.config, source } } : n,
+      );
+      await api.savePipeline({ ...graph, nodes });
+      toast.success('VRL saved to pipeline');
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Save failed');
     }
@@ -73,7 +80,7 @@ export function VrlEditorPage() {
     const handler = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 's') {
         e.preventDefault();
-        handleSave();
+        void handleSave();
       }
     };
     window.addEventListener('keydown', handler);
@@ -97,7 +104,7 @@ export function VrlEditorPage() {
           <p className="font-mono text-xs text-text2">{transformId}</p>
         </div>
         <button
-          onClick={handleSave}
+          onClick={() => void handleSave()}
           className="rounded bg-bg3 px-3 py-1.5 font-body text-sm text-text2 hover:text-text"
         >
           Save (⌘S)

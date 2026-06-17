@@ -134,6 +134,7 @@ members = [
   "lib/vector-vrl/web-playground",
   "tests/antithesis/harness",
   "vdev",
+  "vector-ui-backend",
 ]
 
 [workspace.dependencies]
