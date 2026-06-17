@@ -1,0 +1,133 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: #0a0a08;
+  --bg2: #111110;
+  --bg3: #1a1a17;
+  --border: #2a2a25;
+  --border2: #333330;
+  --border-strong: #3d3d38;
+  --text: #e8e6df;
+  --text2: #9a9890;
+  --text3: #5a5850;
+  --red: #e85533;
+  --on-red: #ffffff;
+  --red-dim: #3d1a12;
+  --amber: #d4860a;
+  --amber-dim: #2e1e04;
+  --green: #4a9e6a;
+  --green-dim: #0d2318;
+  --accent: #c8b88a;
+
+  --font-mono: 'IBM Plex Mono', 'Courier New', monospace;
+  --font-body: 'DM Sans', system-ui, sans-serif;
+  --font-display: 'DM Serif Display', Georgia, serif;
+}
+
+@layer base {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  html {
+    color-scheme: dark;
+  }
+
+  body {
+    @apply m-0 min-h-screen bg-bg font-body text-text antialiased;
+  }
+
+  #root {
+    @apply min-h-screen;
+  }
+
+  ::selection {
+    background: color-mix(in srgb, var(--accent) 35%, transparent);
+  }
+}
+
+/* Thin scrollbars — BRIEFR treatment */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border2) var(--bg2);
+}
+
+*::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+*::-webkit-scrollbar-track {
+  background: var(--bg2);
+}
+
+*::-webkit-scrollbar-thumb {
+  background: var(--border2);
+  border-radius: 3px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--border-strong);
+}
+
+/* React Flow overrides */
+.react-flow__minimap {
+  background: var(--bg2) !important;
+}
+
+.react-flow__minimap-mask {
+  fill: color-mix(in srgb, var(--bg) 75%, transparent) !important;
+}
+
+.react-flow__minimap-node {
+  fill: var(--border2) !important;
+  stroke: var(--border) !important;
+}
+
+.react-flow__controls {
+  background: var(--bg2) !important;
+  border: 1px solid var(--border2) !important;
+  box-shadow: none !important;
+}
+
+.react-flow__controls-button {
+  background: var(--bg2) !important;
+  border-bottom: 1px solid var(--border2) !important;
+  fill: var(--text2) !important;
+}
+
+.react-flow__controls-button:hover {
+  background: var(--bg3) !important;
+}
+
+.react-flow__background pattern circle {
+  fill: var(--border) !important;
+}
+
+/* Sonner toast theming */
+[data-sonner-toaster] {
+  --normal-bg: var(--bg2);
+  --normal-border: var(--border2);
+  --normal-text: var(--text);
+  --success-bg: var(--green-dim);
+  --success-border: var(--green);
+  --success-text: var(--green);
+  --error-bg: var(--red-dim);
+  --error-border: var(--red);
+  --error-text: var(--red);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
