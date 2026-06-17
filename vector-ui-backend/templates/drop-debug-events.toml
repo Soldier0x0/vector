@@ -1,0 +1,7 @@
+id = "drop-debug-events"
+title = "Drop Debug Events"
+description = "Filter out debug-level log events to reduce noise in production pipelines."
+tags = ["filter", "noise-reduction"]
+vrl_source = """
+.level != "debug" && .severity != "debug"
+"""

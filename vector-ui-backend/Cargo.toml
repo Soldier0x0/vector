@@ -1,0 +1,31 @@
+[package]
+name = "vector-ui-backend"
+version = "0.1.0"
+edition = "2024"
+publish = false
+license = "MPL-2.0"
+
+[[bin]]
+name = "vector-ui-backend"
+path = "src/main.rs"
+
+[dependencies]
+anyhow.workspace = true
+axum = { workspace = true, features = ["json", "macros", "ws", "query"] }
+chrono = { workspace = true, features = ["serde"] }
+futures.workspace = true
+http = { version = "0.2", default-features = false }
+regex = "1"
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
+tempfile = "3"
+thiserror = "2"
+tokio = { workspace = true, features = ["full"] }
+toml.workspace = true
+tower-http = { version = "0.4.4", default-features = false, features = ["cors"] }
+tracing.workspace = true
+tracing-subscriber = { workspace = true, features = ["env-filter", "fmt"] }
+uuid = { version = "1", features = ["v4"] }
+vector-api-client = { path = "../lib/vector-api-client" }
+vector-vrl-functions = { path = "../lib/vector-vrl/functions" }
+vrl.workspace = true

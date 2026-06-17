@@ -1,0 +1,14 @@
+id = "mitre-tag-enrichment"
+title = "MITRE Tag Enrichment"
+description = "Add MITRE ATT&CK technique tags based on event fields for SIEM correlation."
+tags = ["security", "enrichment", "mitre"]
+vrl_source = """
+.attack = {}
+if exists(.technique_id) {
+  .attack.technique_id = .technique_id
+  .tags = push(array!(.tags) ?? [], "mitre:" + string!(.technique_id))
+}
+if exists(.tactic) {
+  .attack.tactic = .tactic
+}
+"""

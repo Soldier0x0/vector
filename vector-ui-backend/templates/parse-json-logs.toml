@@ -1,0 +1,11 @@
+id = "parse-json-logs"
+title = "Parse JSON Logs"
+description = "Parse nested JSON from the message field and merge into the event root."
+tags = ["parsing", "json"]
+vrl_source = """
+parsed, err = parse_json(string!(.message))
+if err == null {
+  . = merge(., parsed)
+  del(.message)
+}
+"""
